@@ -92,6 +92,11 @@ class View:
         self.configs_name_list: list[str] = []
         # NOTE: 标记用户是否手动调节了滑块，防止预设选择时的无限递归
         self._slider_updating = False
+        # NOTE: GPU 检测结果缓存，预设切换时不应覆盖此值
+        self._gpu_available = _detect_gpu_acceleration()
+        # NOTE: 窗口拖拽偏移量
+        self._drag_offset_x = 0
+        self._drag_offset_y = 0
 
         self._setup_ui()
 
@@ -111,7 +116,8 @@ class View:
         ctk.set_default_color_theme("blue")
 
         self.root.title(f"VideoSlim 视频压缩 {meta.VERSION}")
-        self.root.resizable(width=False, height=False)
+        # NOTE: 去掉系统默认窗口边框，使用自定义标题栏
+        self.root.overrideredirect(True)
 
         # 设置图标
         icon_path = utils.get_path("./tools/icon.ico")
@@ -119,7 +125,7 @@ class View:
             self.root.iconbitmap(icon_path)
 
         # 窗口居中
-        window_width, window_height = 640, 680
+        window_width, window_height = 640, 700
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         position_x = (screen_width - window_width) // 2
@@ -129,21 +135,58 @@ class View:
         )
         self.root.configure(bg="#1a1a2e")
 
+        # ═══ 自定义标题栏（替代系统默认窗口标题） ═══
+        titlebar = ctk.CTkFrame(
+            self.root, fg_color="#0f0f23", height=40, corner_radius=0
+        )
+        titlebar.pack(fill="x", side="top")
+        titlebar.pack_propagate(False)
+
+        # 标题栏图标和文字
+        ctk.CTkLabel(
+            titlebar,
+            text=f"  🎬 VideoSlim {meta.VERSION}",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#8899bb",
+        ).pack(side="left", padx=(4, 0))
+
+        # 关闭按钮
+        close_btn = ctk.CTkButton(
+            titlebar,
+            text="✕",
+            width=40,
+            height=30,
+            font=ctk.CTkFont(size=14),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#8899bb",
+            corner_radius=0,
+            command=self._on_close,
+        )
+        close_btn.pack(side="right", padx=(0, 2))
+
+        # 最小化按钮
+        min_btn = ctk.CTkButton(
+            titlebar,
+            text="─",
+            width=40,
+            height=30,
+            font=ctk.CTkFont(size=14),
+            fg_color="transparent",
+            hover_color="#2d2d4a",
+            text_color="#8899bb",
+            corner_radius=0,
+            command=self._minimize_window,
+        )
+        min_btn.pack(side="right")
+
+        # NOTE: 绑定拖拽事件到标题栏，使无边框窗口可以拖动
+        titlebar.bind("<Button-1>", self._on_titlebar_press)
+        titlebar.bind("<B1-Motion>", self._on_titlebar_drag)
+
         # 主容器
         main_frame = ctk.CTkFrame(self.root, fg_color="#1a1a2e")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=12)
-
-        # ═══ 顶部标题栏 ═══
-        header_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 8))
-
-        title_label = ctk.CTkLabel(
-            header_frame,
-            text=f"🎬 VideoSlim {meta.VERSION}",
-            font=ctk.CTkFont(size=22, weight="bold"),
-            text_color="#e0e0ff",
-        )
-        title_label.pack(side="left")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=(8, 12))
 
         # ═══ 拖拽区域（文件列表） ═══
         drop_frame = ctk.CTkFrame(
@@ -391,15 +434,14 @@ class View:
             checkmark_color="#ffffff",
         ).pack(side="left", padx=(0, 12))
 
-        # NOTE: GPU 加速通过 _detect_gpu_acceleration() 自动检测，可用时默认开启
-        gpu_available = _detect_gpu_acceleration()
-        self.gpu_var = BooleanVar(value=gpu_available)
+        # NOTE: GPU 加速使用 __init__ 中缓存的检测结果，可用时默认开启
+        self.gpu_var = BooleanVar(value=self._gpu_available)
         self.gpu_checkbox = ctk.CTkCheckBox(
             opts_row,
-            text="GPU 加速" + (" ✓" if gpu_available else " (不可用)"),
+            text="GPU 加速" + (" ✓" if self._gpu_available else " (不可用)"),
             variable=self.gpu_var,
             font=ctk.CTkFont(size=12),
-            text_color="#c8d6e5" if gpu_available else "#666688",
+            text_color="#c8d6e5" if self._gpu_available else "#666688",
             fg_color="#06d6a0",
             hover_color="#05c090",
             border_color="#4a4a6a",
@@ -548,8 +590,8 @@ class View:
                 self.speed_slider.set(idx)
                 self.speed_value_label.configure(text=preset_value)
 
-            # 更新 GPU 加速
-            self.gpu_var.set(config.x264.opencl_acceleration)
+            # NOTE: GPU 加速不跟随预设切换，保持自动检测值
+            # 预设中的 opencl_acceleration 仅在压缩时生效
         finally:
             self._slider_updating = False
 
@@ -601,6 +643,38 @@ class View:
                 return
 
         self.controller.close()
+
+    def _minimize_window(self):
+        """
+        最小化无边框窗口
+
+        NOTE: overrideredirect 窗口不能直接 iconify，
+        需要先临时恢复边框再最小化，然后在恢复时重新去掉边框。
+        """
+        self.root.overrideredirect(False)
+        self.root.iconify()
+        # NOTE: 监听恢复事件，恢复时重新去掉系统边框
+        self.root.bind("<Map>", self._on_window_restore)
+
+    def _on_window_restore(self, event):
+        """
+        窗口从最小化恢复时的回调
+
+        重新应用无边框模式。
+        """
+        self.root.unbind("<Map>")
+        self.root.overrideredirect(True)
+
+    def _on_titlebar_press(self, event):
+        """记录拖拽起始偏移量"""
+        self._drag_offset_x = event.x
+        self._drag_offset_y = event.y
+
+    def _on_titlebar_drag(self, event):
+        """根据鼠标移动拖拽窗口位置"""
+        new_x = self.root.winfo_x() + event.x - self._drag_offset_x
+        new_y = self.root.winfo_y() + event.y - self._drag_offset_y
+        self.root.geometry(f"+{new_x}+{new_y}")
 
     def _clear_file_list(self):
         """清空文件列表文本框"""
