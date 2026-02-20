@@ -127,7 +127,7 @@ class View:
             self.root.iconbitmap(icon_path)
 
         # 窗口居中
-        window_width, window_height = 640, 780
+        window_width, window_height = 640, 720
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         position_x = (screen_width - window_width) // 2
@@ -221,14 +221,48 @@ class View:
 
         self.title_var = StringVar()
         self.title_var.set("📂 将视频文件或文件夹拖拽到下方区域")
+
+        # 标题行：左侧提示文字 + 右侧操作按钮
+        drop_header = ctk.CTkFrame(drop_frame, fg_color="transparent")
+        drop_header.pack(fill="x", padx=12, pady=(8, 4))
+
         self.title_label = ctk.CTkLabel(
-            drop_frame,
+            drop_header,
             textvariable=self.title_var,
             font=ctk.CTkFont(size=13),
             text_color="#8899bb",
             anchor="w",
         )
-        self.title_label.pack(fill="x", padx=12, pady=(10, 4))
+        self.title_label.pack(side="left")
+
+        # NOTE: 压缩按钮和清空按钮放在拖拽区域右上角
+        self.compress_btn = ctk.CTkButton(
+            drop_header,
+            text="🚀 开始压缩",
+            width=110,
+            height=30,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color="#4361ee",
+            hover_color="#3251de",
+            corner_radius=8,
+            command=self._start_compression,
+        )
+        self.compress_btn.pack(side="right")
+
+        clear_btn = ctk.CTkButton(
+            drop_header,
+            text="🗑️ 清空",
+            width=80,
+            height=30,
+            font=ctk.CTkFont(size=12),
+            fg_color="#2d2d4a",
+            hover_color="#3d3d5a",
+            border_width=1,
+            border_color="#4a4a6a",
+            corner_radius=8,
+            command=self._clear_file_list,
+        )
+        clear_btn.pack(side="right", padx=(0, 8))
 
         self.text_box = ctk.CTkTextbox(
             drop_frame,
@@ -553,35 +587,7 @@ class View:
         )
         self.total_percent_label.pack(side="left")
 
-        # ═══ 底部按钮区 ═══
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(0, 0))
 
-        clear_btn = ctk.CTkButton(
-            btn_frame,
-            text="🗑️ 清空文件",
-            width=140,
-            height=42,
-            font=ctk.CTkFont(size=14),
-            fg_color="#2d2d4a",
-            hover_color="#3d3d5a",
-            border_width=1,
-            border_color="#4a4a6a",
-            command=self._clear_file_list,
-        )
-        clear_btn.pack(side="left", padx=(0, 20))
-
-        self.compress_btn = ctk.CTkButton(
-            btn_frame,
-            text="🚀 开始压缩",
-            width=200,
-            height=42,
-            font=ctk.CTkFont(size=15, weight="bold"),
-            fg_color="#4361ee",
-            hover_color="#3251de",
-            command=self._start_compression,
-        )
-        self.compress_btn.pack(side="right")
 
     # ═══════════════════════════════════════
     # 滑块和预设联动逻辑
