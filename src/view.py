@@ -127,7 +127,7 @@ class View:
             self.root.iconbitmap(icon_path)
 
         # 窗口居中
-        window_width, window_height = 640, 710
+        window_width, window_height = 640, 780
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         position_x = (screen_width - window_width) // 2
