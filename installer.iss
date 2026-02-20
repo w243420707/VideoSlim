@@ -1,12 +1,12 @@
 [Setup]
 AppName=VideoSlim
-AppVersion=2.0.0
+AppVersion=2.0.1
 AppPublisher=DongGuoZheng
 AppPublisherURL=https://github.com/DongGuoZheng/VideoSlim
 DefaultDirName={autopf}\VideoSlim
 DefaultGroupName=VideoSlim
 OutputDir=C:\Users\yooyu\Desktop
-OutputBaseFilename=VideoSlim_Setup_v2.0.0
+OutputBaseFilename=VideoSlim_Setup_v2.0.1
 SetupIconFile=tools\icon.ico
 Compression=lzma2
 SolidCompression=yes
