@@ -91,9 +91,10 @@ class VideoService:
         input_file = file.file_path
 
         if not delete_audio:
-            # Process with audio using single ffmpeg command
+            # NOTE: -hwaccel 必须放在 -i 之前，它是 FFmpeg 的输入选项
+            hwaccel_opt = "-hwaccel auto " if config.x264.opencl_acceleration else ""
             commands.append(
-                f'"{ffmpeg_path}" -y -i "{input_file}" '
+                f'"{ffmpeg_path}" -y {hwaccel_opt}-i "{input_file}" '
                 + f"-c:v libx264 -crf {config.x264.crf} -preset {preset} "
                 + f"-keyint_min {config.x264.I} -g {config.x264.I} "
                 + f"-refs {config.x264.r} -bf {config.x264.b} "
@@ -101,13 +102,13 @@ class VideoService:
                 + "-aq-mode 2 -aq-strength 0.8 "
                 + "-c:a aac -b:a 128k "
                 + "-movflags faststart "
-                + ("-hwaccel auto " if config.x264.opencl_acceleration else "")
-                + f'-map 0: "{output_path}"'
+                + f'-map 0 "{output_path}"'
             )
         else:
-            # Process without audio using single ffmpeg command
+            # NOTE: -hwaccel 必须放在 -i 之前
+            hwaccel_opt = "-hwaccel auto " if config.x264.opencl_acceleration else ""
             commands.append(
-                f'"{ffmpeg_path}" -y -i "{input_file}" '
+                f'"{ffmpeg_path}" -y {hwaccel_opt}-i "{input_file}" '
                 + f"-c:v libx264 -crf {config.x264.crf} -preset {preset} "
                 + f"-keyint_min {config.x264.I} -g {config.x264.I} "
                 + f"-refs {config.x264.r} -bf {config.x264.b} "
@@ -115,8 +116,7 @@ class VideoService:
                 + "-aq-mode 2 -aq-strength 0.8 "
                 + "-an "
                 + "-movflags faststart "
-                + ("-hwaccel auto " if config.x264.opencl_acceleration else "")
-                + f'-map 0: "{output_path}"'
+                + f'-map 0 "{output_path}"'
             )
 
         # Execute commands

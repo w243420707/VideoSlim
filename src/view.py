@@ -1,3 +1,4 @@
+import ctypes
 import logging
 import os
 import subprocess
@@ -664,6 +665,8 @@ class View:
         处理应用程序关闭事件
 
         如果有正在处理的任务，弹出确认对话框。
+        NOTE: 直接调用 controller.close() + root.destroy()，
+        不依赖消息队列的 ExitMessage，避免无边框窗口下关闭不响应。
         """
         if VideoService.get_instance().is_processing():
             response = messagebox.askyesno(
@@ -672,28 +675,23 @@ class View:
             if not response:
                 return
 
-        self.controller.close()
+        try:
+            self.controller.close()
+        except Exception as e:
+            logging.error(f"关闭时出错: {e}")
+        finally:
+            self.root.destroy()
 
     def _minimize_window(self):
         """
-        最小化无边框窗口
+        最小化无边框窗口到任务栏
 
-        NOTE: overrideredirect 窗口不能直接 iconify，
-        需要先临时恢复边框再最小化，然后在恢复时重新去掉边框。
+        NOTE: overrideredirect 窗口无法用 tkinter 的 iconify() 正常最小化。
+        直接使用 Windows API ShowWindow(hwnd, SW_MINIMIZE) 实现。
         """
-        self.root.overrideredirect(False)
-        self.root.iconify()
-        # NOTE: 监听恢复事件，恢复时重新去掉系统边框
-        self.root.bind("<Map>", self._on_window_restore)
-
-    def _on_window_restore(self, event):
-        """
-        窗口从最小化恢复时的回调
-
-        重新应用无边框模式。
-        """
-        self.root.unbind("<Map>")
-        self.root.overrideredirect(True)
+        SW_MINIMIZE = 6
+        hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+        ctypes.windll.user32.ShowWindow(hwnd, SW_MINIMIZE)
 
     def _on_titlebar_press(self, event):
         """
