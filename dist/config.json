@@ -1,0 +1,70 @@
+{
+    "configs": [
+        {
+            "name": "常规默认",
+            "x264": {
+                "crf": 23.5,
+                "preset": "veryslow",
+                "I": 600,
+                "r": 4,
+                "b": 3,
+                "opencl_acceleration": false
+            }
+        },
+        {
+            "name": "快速压缩",
+            "x264": {
+                "crf": 28,
+                "preset": "fast",
+                "I": 250,
+                "r": 2,
+                "b": 2,
+                "opencl_acceleration": false
+            }
+        },
+        {
+            "name": "高画质",
+            "x264": {
+                "crf": 18,
+                "preset": "slow",
+                "I": 600,
+                "r": 5,
+                "b": 3,
+                "opencl_acceleration": false
+            }
+        },
+        {
+            "name": "手机视频",
+            "x264": {
+                "crf": 25,
+                "preset": "medium",
+                "I": 300,
+                "r": 3,
+                "b": 3,
+                "opencl_acceleration": false
+            }
+        },
+        {
+            "name": "屏幕录制",
+            "x264": {
+                "crf": 20,
+                "preset": "medium",
+                "I": 250,
+                "r": 3,
+                "b": 2,
+                "opencl_acceleration": false
+            }
+        },
+        {
+            "name": "极限压缩",
+            "x264": {
+                "crf": 32,
+                "preset": "veryfast",
+                "I": 250,
+                "r": 1,
+                "b": 2,
+                "opencl_acceleration": false
+            }
+        }
+    ]
+}

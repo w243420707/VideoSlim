@@ -19,9 +19,15 @@ def setup_logging():
     该函数用于设置Python的日志记录系统，将日志信息写入到文件中。
     配置包括日志级别、输出文件、文件写入模式以及日志格式。
     """
+    # NOTE: 日志写到 %APPDATA%/VideoSlim/ 下，避免安装到 Program Files 后无写入权限
+    import os
+    log_dir = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "VideoSlim")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "log.txt")
+
     logging.basicConfig(
         level=logging.DEBUG,
-        filename="log.txt",
+        filename=log_path,
         filemode="w",
         format="%(asctime)s - %(levelname)s - %(message)s",
         encoding="utf-8",
