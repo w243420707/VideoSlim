@@ -94,9 +94,11 @@ class View:
         self._slider_updating = False
         # NOTE: GPU 检测结果缓存，预设切换时不应覆盖此值
         self._gpu_available = _detect_gpu_acceleration()
-        # NOTE: 窗口拖拽偏移量
-        self._drag_offset_x = 0
-        self._drag_offset_y = 0
+        # NOTE: 窗口拖拽用绝对坐标缓存，避免每帧查询 winfo 导致闪烁
+        self._drag_start_x = 0
+        self._drag_start_y = 0
+        self._window_start_x = 0
+        self._window_start_y = 0
 
         self._setup_ui()
 
@@ -116,7 +118,7 @@ class View:
         ctk.set_default_color_theme("blue")
 
         self.root.title(f"VideoSlim 视频压缩 {meta.VERSION}")
-        # NOTE: 去掉系统默认窗口边框，使用自定义标题栏
+        # NOTE: 去掉系统默认窗口边框，使用自定义圆角窗口
         self.root.overrideredirect(True)
 
         # 设置图标
@@ -125,7 +127,7 @@ class View:
             self.root.iconbitmap(icon_path)
 
         # 窗口居中
-        window_width, window_height = 640, 700
+        window_width, window_height = 640, 710
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         position_x = (screen_width - window_width) // 2
@@ -133,13 +135,33 @@ class View:
         self.root.geometry(
             f"{window_width}x{window_height}+{position_x}+{position_y}"
         )
-        self.root.configure(bg="#1a1a2e")
 
-        # ═══ 自定义标题栏（替代系统默认窗口标题） ═══
-        titlebar = ctk.CTkFrame(
-            self.root, fg_color="#0f0f23", height=40, corner_radius=0
+        # NOTE: 圆角窗口核心技术：
+        # 1. 设置窗口背景为特殊透明色
+        # 2. 使该颜色完全透明（看到桌面）
+        # 3. 在其上放置带 corner_radius 的 CTkFrame
+        # 4. CTkFrame 圆角外的区域就是透明色，视觉上就是圆角窗口
+        TRANSPARENT_COLOR = "#000001"
+        self.root.configure(bg=TRANSPARENT_COLOR)
+        self.root.wm_attributes("-transparentcolor", TRANSPARENT_COLOR)
+        # NOTE: alpha=0.99 启用合成器双缓冲，减少拖拽闪烁
+        self.root.wm_attributes("-alpha", 0.99)
+
+        # ═══ 圆角外壳（整个窗口的可见区域） ═══
+        outer_frame = ctk.CTkFrame(
+            self.root,
+            fg_color="#0f0f23",
+            corner_radius=16,
+            border_width=1,
+            border_color="#2a2a4a",
         )
-        titlebar.pack(fill="x", side="top")
+        outer_frame.pack(fill="both", expand=True, padx=2, pady=2)
+
+        # ═══ 自定义标题栏（在圆角外壳内部顶部） ═══
+        titlebar = ctk.CTkFrame(
+            outer_frame, fg_color="transparent", height=42
+        )
+        titlebar.pack(fill="x", padx=4, pady=(4, 0))
         titlebar.pack_propagate(False)
 
         # 标题栏图标和文字
@@ -148,45 +170,47 @@ class View:
             text=f"  🎬 VideoSlim {meta.VERSION}",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color="#8899bb",
-        ).pack(side="left", padx=(4, 0))
+        ).pack(side="left", padx=(8, 0))
 
         # 关闭按钮
         close_btn = ctk.CTkButton(
             titlebar,
             text="✕",
-            width=40,
-            height=30,
-            font=ctk.CTkFont(size=14),
+            width=36,
+            height=28,
+            font=ctk.CTkFont(size=13),
             fg_color="transparent",
             hover_color="#e74c3c",
             text_color="#8899bb",
-            corner_radius=0,
+            corner_radius=6,
             command=self._on_close,
         )
-        close_btn.pack(side="right", padx=(0, 2))
+        close_btn.pack(side="right", padx=(0, 4))
 
         # 最小化按钮
         min_btn = ctk.CTkButton(
             titlebar,
             text="─",
-            width=40,
-            height=30,
-            font=ctk.CTkFont(size=14),
+            width=36,
+            height=28,
+            font=ctk.CTkFont(size=13),
             fg_color="transparent",
             hover_color="#2d2d4a",
             text_color="#8899bb",
-            corner_radius=0,
+            corner_radius=6,
             command=self._minimize_window,
         )
-        min_btn.pack(side="right")
+        min_btn.pack(side="right", padx=(0, 2))
 
-        # NOTE: 绑定拖拽事件到标题栏，使无边框窗口可以拖动
+        # NOTE: 拖拽事件绑定到标题栏
         titlebar.bind("<Button-1>", self._on_titlebar_press)
         titlebar.bind("<B1-Motion>", self._on_titlebar_drag)
 
-        # 主容器
-        main_frame = ctk.CTkFrame(self.root, fg_color="#1a1a2e")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=(8, 12))
+        # ═══ 内容区域（在圆角外壳内部，带圆角底部） ═══
+        main_frame = ctk.CTkFrame(
+            outer_frame, fg_color="#1a1a2e", corner_radius=12
+        )
+        main_frame.pack(fill="both", expand=True, padx=4, pady=(4, 4))
 
         # ═══ 拖拽区域（文件列表） ═══
         drop_frame = ctk.CTkFrame(
@@ -666,15 +690,24 @@ class View:
         self.root.overrideredirect(True)
 
     def _on_titlebar_press(self, event):
-        """记录拖拽起始偏移量"""
-        self._drag_offset_x = event.x
-        self._drag_offset_y = event.y
+        """
+        记录拖拽起始位置
+
+        NOTE: 使用 x_root/y_root 绝对屏幕坐标 + 窗口起始位置缓存，
+        避免拖拽过程中每帧调用 winfo_x/winfo_y 导致的闪烁。
+        """
+        self._drag_start_x = event.x_root
+        self._drag_start_y = event.y_root
+        self._window_start_x = self.root.winfo_x()
+        self._window_start_y = self.root.winfo_y()
 
     def _on_titlebar_drag(self, event):
-        """根据鼠标移动拖拽窗口位置"""
-        new_x = self.root.winfo_x() + event.x - self._drag_offset_x
-        new_y = self.root.winfo_y() + event.y - self._drag_offset_y
-        self.root.geometry(f"+{new_x}+{new_y}")
+        """根据鼠标移动拖拽窗口位置（使用绝对坐标差值，无闪烁）"""
+        dx = event.x_root - self._drag_start_x
+        dy = event.y_root - self._drag_start_y
+        self.root.geometry(
+            f"+{self._window_start_x + dx}+{self._window_start_y + dy}"
+        )
 
     def _clear_file_list(self):
         """清空文件列表文本框"""
