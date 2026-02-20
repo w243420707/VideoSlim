@@ -210,7 +210,7 @@ class View:
         main_frame = ctk.CTkFrame(
             outer_frame, fg_color="#1a1a2e", corner_radius=12
         )
-        main_frame.pack(fill="both", expand=True, padx=8, pady=(6, 8))
+        main_frame.pack(fill="both", expand=True, padx=16, pady=(12, 16))
 
         # ═══ 拖拽区域（文件列表） ═══
         drop_frame = ctk.CTkFrame(
