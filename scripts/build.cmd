@@ -10,12 +10,14 @@ REM 创建构建目录（如果不存在）
 mkdir %BUILD_DIR% 2>nul
 
 REM 使用 pyinstaller 构建单文件应用，包含所有工具
+REM NOTE: --collect-all customtkinter 确保 customtkinter 的 json/otf 资源文件被正确打包
 pyinstaller --onefile ^
     --name "VideoSlim" ^
     --noconsole ^
     --icon "./tools/icon.ico" ^
     --add-data "./tools/ffmpeg.exe;tools" ^
     --add-data "./tools/icon.ico;tools" ^
+    --collect-all customtkinter ^
     --distpath %DIST_DIR% ^
     --workpath %BUILD_TMP_DIR% ^
     main.py
@@ -32,6 +34,6 @@ REM 复制配置文件和其他必要文件到输出目录
 copy /Y config.json %DIST_DIR% 2>nul
 
 REM 清理临时文件（可选）
-REM rmdir /S /Q %BUILD_TMP_DIBuild 
+REM rmdir /S /Q %BUILD_TMP_DIBuild
 
 pause

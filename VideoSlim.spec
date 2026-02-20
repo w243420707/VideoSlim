@@ -1,11 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import customtkinter
+import os
+
+# NOTE: 获取 customtkinter 包的安装路径，用于打包时包含其资源文件
+ctk_path = os.path.dirname(customtkinter.__file__)
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('./tools/ffmpeg.exe', 'tools'), ('./tools/icon.ico', 'tools')],
+    datas=[
+        ('./tools/ffmpeg.exe', 'tools'),
+        ('./tools/icon.ico', 'tools'),
+        (ctk_path, 'customtkinter'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
