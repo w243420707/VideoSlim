@@ -1,6 +1,7 @@
+import logging
 import os
+import subprocess
 import tkinter as tk
-import webbrowser
 from queue import Queue
 from tkinter import END, BooleanVar, StringVar, messagebox
 
@@ -36,6 +37,37 @@ SPEED_LABELS = {
     6: "很快",
     8: "极快",
 }
+
+
+def _detect_gpu_acceleration() -> bool:
+    """
+    自动检测系统是否支持 GPU 硬件加速
+
+    通过查询 FFmpeg 的 hwaccel 列表，判断是否有可用的 GPU 加速方案。
+    支持 CUDA(NVIDIA)、QSV(Intel)、D3D11VA/DXVA2(通用 Windows) 等。
+
+    Returns:
+        bool: 如果检测到可用的 GPU 加速则返回 True
+    """
+    try:
+        ffmpeg_path = meta.FFMPEG_PATH
+        result = subprocess.run(
+            [ffmpeg_path, "-hwaccels"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        output = result.stdout.lower()
+        # NOTE: 检测常见 GPU 加速方案，任一可用即返回 True
+        gpu_methods = ["cuda", "qsv", "d3d11va", "dxva2", "opencl", "vulkan"]
+        has_gpu = any(method in output for method in gpu_methods)
+        logging.info(f"GPU 加速检测: {'可用' if has_gpu else '不可用'} (hwaccels: {output.strip()})")
+        return has_gpu
+    except Exception as e:
+        logging.warning(f"GPU 加速检测失败: {e}")
+        return False
+
 
 
 class View:
@@ -113,22 +145,6 @@ class View:
         )
         title_label.pack(side="left")
 
-        github_btn = ctk.CTkButton(
-            header_frame,
-            text="⭐ GitHub",
-            width=90,
-            height=30,
-            font=ctk.CTkFont(size=12),
-            fg_color="transparent",
-            border_width=1,
-            border_color="#4a4a6a",
-            hover_color="#2d2d4a",
-            command=lambda: webbrowser.open_new_tab(
-                "https://github.com/DongGuoZheng/VideoSlim"
-            ),
-        )
-        github_btn.pack(side="right")
-
         # ═══ 拖拽区域（文件列表） ═══
         drop_frame = ctk.CTkFrame(
             main_frame, fg_color="#16213e", corner_radius=12, border_width=2,
@@ -189,7 +205,7 @@ class View:
             width=70,
         ).pack(side="left")
 
-        self.select_config_name = StringVar(self.root, value="default")
+        self.select_config_name = StringVar(self.root, value="常规默认")
         self.config_combobox = ctk.CTkComboBox(
             preset_row,
             values=[],
@@ -332,13 +348,13 @@ class View:
         )
         options_title.pack(fill="x", padx=14, pady=(10, 6))
 
-        # 选项行 1
-        opts_row1 = ctk.CTkFrame(options_frame, fg_color="transparent")
-        opts_row1.pack(fill="x", padx=14, pady=(0, 4))
+        # NOTE: 所有 4 个选项放在同一行
+        opts_row = ctk.CTkFrame(options_frame, fg_color="transparent")
+        opts_row.pack(fill="x", padx=14, pady=(0, 10))
 
-        self.recurse_var = BooleanVar(value=False)
+        self.recurse_var = BooleanVar(value=True)
         ctk.CTkCheckBox(
-            opts_row1,
+            opts_row,
             text="递归子文件夹",
             variable=self.recurse_var,
             font=ctk.CTkFont(size=12),
@@ -347,12 +363,12 @@ class View:
             hover_color="#3251de",
             border_color="#4a4a6a",
             checkmark_color="#ffffff",
-        ).pack(side="left", padx=(0, 20))
+        ).pack(side="left", padx=(0, 12))
 
-        self.delete_source_var = BooleanVar(value=False)
+        self.delete_source_var = BooleanVar(value=True)
         ctk.CTkCheckBox(
-            opts_row1,
-            text="完成后删除源文件",
+            opts_row,
+            text="删除源文件",
             variable=self.delete_source_var,
             font=ctk.CTkFont(size=12),
             text_color="#c8d6e5",
@@ -360,16 +376,12 @@ class View:
             hover_color="#3251de",
             border_color="#4a4a6a",
             checkmark_color="#ffffff",
-        ).pack(side="left", padx=(0, 20))
-
-        # 选项行 2
-        opts_row2 = ctk.CTkFrame(options_frame, fg_color="transparent")
-        opts_row2.pack(fill="x", padx=14, pady=(0, 10))
+        ).pack(side="left", padx=(0, 12))
 
         self.delete_audio_var = BooleanVar(value=False)
         ctk.CTkCheckBox(
-            opts_row2,
-            text="删除音频轨道",
+            opts_row,
+            text="删除音频",
             variable=self.delete_audio_var,
             font=ctk.CTkFont(size=12),
             text_color="#c8d6e5",
@@ -377,20 +389,23 @@ class View:
             hover_color="#3251de",
             border_color="#4a4a6a",
             checkmark_color="#ffffff",
-        ).pack(side="left", padx=(0, 20))
+        ).pack(side="left", padx=(0, 12))
 
-        self.gpu_var = BooleanVar(value=False)
-        ctk.CTkCheckBox(
-            opts_row2,
-            text="GPU 加速",
+        # NOTE: GPU 加速通过 _detect_gpu_acceleration() 自动检测，可用时默认开启
+        gpu_available = _detect_gpu_acceleration()
+        self.gpu_var = BooleanVar(value=gpu_available)
+        self.gpu_checkbox = ctk.CTkCheckBox(
+            opts_row,
+            text="GPU 加速" + (" ✓" if gpu_available else " (不可用)"),
             variable=self.gpu_var,
             font=ctk.CTkFont(size=12),
-            text_color="#c8d6e5",
+            text_color="#c8d6e5" if gpu_available else "#666688",
             fg_color="#06d6a0",
             hover_color="#05c090",
             border_color="#4a4a6a",
             checkmark_color="#ffffff",
-        ).pack(side="left", padx=(0, 20))
+        )
+        self.gpu_checkbox.pack(side="left", padx=(0, 0))
 
         # ═══ 进度区域 ═══
         progress_frame = ctk.CTkFrame(
@@ -406,11 +421,11 @@ class View:
             text_color="#e0e0ff",
             anchor="w",
         )
-        progress_title.pack(fill="x", padx=14, pady=(10, 6))
+        progress_title.pack(fill="x", padx=14, pady=(12, 8))
 
         # 当前文件进度
         cur_row = ctk.CTkFrame(progress_frame, fg_color="transparent")
-        cur_row.pack(fill="x", padx=14, pady=(0, 2))
+        cur_row.pack(fill="x", padx=14, pady=(0, 6))
 
         ctk.CTkLabel(
             cur_row,
@@ -442,7 +457,7 @@ class View:
 
         # 总进度
         total_row = ctk.CTkFrame(progress_frame, fg_color="transparent")
-        total_row.pack(fill="x", padx=14, pady=(0, 10))
+        total_row.pack(fill="x", padx=14, pady=(4, 14))
 
         ctk.CTkLabel(
             total_row,

@@ -1,7 +1,7 @@
 {
     "configs": [
         {
-            "name": "default",
+            "name": "常规默认",
             "x264": {
                 "crf": 23.5,
                 "preset": "veryslow",
